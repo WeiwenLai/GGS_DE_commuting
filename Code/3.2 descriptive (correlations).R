@@ -10,11 +10,13 @@ setwd("G:/My Drive/R Projects/GGS_DE_commuting")
 
 #### Library ####
 library(haven)
+library(dplyr)
 library(lavaan)
 
 #### Data ####
-dt1 <- readRDS("Data/dt1b.rds") 
-dt99 <- dt1
+dt1 <- readRDS("Data/dt1c.rds") 
+dt99 <- dt1 |> 
+  na.omit()
 
 #### SEM (baseline models: with measurement models only) ####
 m1_s <- 
@@ -113,11 +115,45 @@ m1_s <-
   wfc_w2 ~~ comtime_w1 + comtime_w2 + comtime_w3
   wfc_w3 ~~ comtime_w1 + comtime_w2 + comtime_w3
 "
-m1 <- cfa(m1_s, data = dt99, missing = "FIML")
+m1 <- cfa(m1_s, data = dt99)
 summary(m1, standardized = TRUE)
 
+# Correlation table 
 cortab <- round(lavInspect(m1, what = "cor.all"), 2)
-cortab[c("dep_w1","dep_w2","dep_w3","wfc_w1","wfc_w2","wfc_w3", "comtime_w1","comtime_w2","comtime_w3"),
-       c("dep_w1","dep_w2","dep_w3","wfc_w1","wfc_w2","wfc_w3", "comtime_w1","comtime_w2","comtime_w3")]
+
+# Variables included in the table
+vars <- c("comtime_w1","comtime_w2","comtime_w3",
+          "wfc_w1","wfc_w2","wfc_w3",
+          "dep_w1","dep_w2","dep_w3")
+
+# Extract parameters needed
+pe <- parameterEstimates(m1)
+# Mean and sd
+means <- pe[pe$op == "~1" & pe$lhs %in% vars, c("lhs", "est", "se")]
+vars_ <- pe[pe$op == "~~" & pe$lhs %in% vars & pe$lhs == pe$rhs, c("lhs", "est", "se")]
+
+desc <- data.frame(
+  M      = means$est[match(vars, means$lhs)],
+  M_se   = means$se[match(vars, means$lhs)],
+  Var    = vars_$est[match(vars, vars_$lhs)],
+  Var_se = vars_$se[match(vars, vars_$lhs)],
+  row.names = vars
+)
+desc$SD <- sqrt(desc$Var)
+round(desc, 2)
+
+# The table to report
+out <- rbind(cortab[vars, vars], M = round(desc$M, 2), SD = round(desc$SD, 2))
+
+# testing significant relationship
+ss <- standardizedSolution(m1)
+cv <- ss[ss$op == "~~" & ss$lhs %in% vars & ss$rhs %in% vars &
+           ss$lhs != ss$rhs, ]
+
+R <- P <- matrix(NA, length(vars), length(vars), dimnames = list(vars, vars))
+for (i in seq_len(nrow(cv))) {
+  R[cv$lhs[i], cv$rhs[i]] <- R[cv$rhs[i], cv$lhs[i]] <- cv$est.std[i]
+  P[cv$lhs[i], cv$rhs[i]] <- P[cv$rhs[i], cv$lhs[i]] <- cv$pvalue[i]
+}
 
 #### End ####

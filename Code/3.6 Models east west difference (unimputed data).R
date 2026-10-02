@@ -1,5 +1,8 @@
 #### Start ####
 
+# based on imputated datasets
+# To test the difference between East and West Germany
+
 rm(list = ls())
 gc()
 
@@ -9,12 +12,20 @@ setwd("G:/My Drive/R Projects/GGS_DE_commuting")
 #### Library ####
 library(haven)
 library(lavaan.mi)
+library(semTools)
+library(mice)
 
 #### Data ####
 dt1 <- readRDS("Data/dt1d.rds") 
-dt99 <- dt1
+dt99 <- dt1 |> 
+  complete("long", include = T) |> 
+  dplyr::group_by(.id) |> 
+  dplyr::filter(all(east_w1 == east_w2 &
+                  east_w2 == east_w3)) |> 
+  dplyr::ungroup() |> 
+  as.mids()
 
-#### Model 1: full CLPM,  without covariates ####
+#### Unconstrained models ####
 m1_s <- "
   
   # Measurement models: Depression
@@ -94,16 +105,29 @@ m1_s <- "
   id + ie + ifn + ig + ih == 0
   
   # Structure model
-  # T1 -> T2
-  comtime_w2 ~ comtime_w1 + wfc_w1 + dep_w1
-  wfc_w2 ~ comtime_w1 + wfc_w1 + dep_w1
-  dep_w2 ~ comtime_w1 + wfc_w1 + dep_w1
+  # Time-varying covariates: T1 -> T2
+  comtime_w2 ~ comtime_w1 + wfc_w1 + age + gender + mig + gv + te_w1 +
+    emp_pr_w2 + semp_w2 + hs_wc_w2 +
+    ftj_w2 + wrhr_w2 + married_w2 + nchild_w2 + urban_w2
+  wfc_w2 ~ c(la1, la2)*comtime_w1 + wfc_w1 + dep_w1 + age + gender + mig + gv + te_w1 +
+    emp_pr_w2 + semp_w2 + hs_wc_w2 +
+    ftj_w2 + wrhr_w2 + married_w2 + nchild_w2 + urban_w2
+  dep_w2 ~ wfc_w1 + dep_w1 + age + gender + mig + gv + te_w1 +
+    emp_pr_w2 + semp_w2 + hs_wc_w2 +
+    ftj_w2 + wrhr_w2 + married_w2 + nchild_w2 + urban_w2
   
-  # T2 -> T3
-  comtime_w3 ~ comtime_w2 + wfc_w2 + dep_w2
-  wfc_w3 ~ comtime_w2 + wfc_w2 + dep_w2
-  dep_w3 ~ comtime_w2 + wfc_w2 + dep_w2
-
+  # Time-varying covariates: T2 -> T3
+  comtime_w3 ~ comtime_w2 + wfc_w2 + age + gender + mig + gv + te_w1 +
+    emp_pr_w3 + semp_w3 + hs_wc_w3 +
+    ftj_w3 + wrhr_w3 + married_w3 + nchild_w3 + urban_w3
+  wfc_w3 ~ comtime_w2 + wfc_w2 + dep_w2 + age + gender + mig + gv + te_w1 +
+    emp_pr_w3 + semp_w3 + hs_wc_w3 +
+    ftj_w3 + wrhr_w3 + married_w3 + nchild_w3 + urban_w3
+  dep_w3 ~ c(lb1, lb2)*wfc_w2 + dep_w2 + age + gender + mig + gv + te_w1 +
+    emp_pr_w3 + semp_w3 + hs_wc_w3 +
+    ftj_w3 + wrhr_w3 + married_w3 + nchild_w3 + urban_w3 + 
+    c(lc1, lc2)*comtime_w1
+    
   # Within-wave covariance
   # T1
   comtime_w1 ~~ wfc_w1 + dep_w1
@@ -114,12 +138,25 @@ m1_s <- "
   # T3
   comtime_w3 ~~ wfc_w3 + dep_w3
   wfc_w3     ~~ dep_w3
+  
+  # direct effect
+  dir1 := lc1
+  dir2 := lc2
+  # Indirect effect
+  ind1 := la1 * lb1
+  ind2 := la2 * lb2
+  # Total effect
+  total1 := ind1 + lc1
+  total2 := ind2 + lc2
+  
+  # GEnder difference
+  diff_dir := dir1 - dir2
+  diff_ind := ind1 - ind2
+  diff_total := total1 - total2
 "
+m1 <- sem.mi(m1_s, data = dt99, group = "east_w1", se.def = "mc", parallel = "snow", ncpus = 6)
 
-m1 <- sem.mi(m1_s, data = dt99)
-summary(m1, fit.measures = TRUE, standardized = TRUE)
-
-#### Model 2: full CLPM,  with covariates ####
+#### Unconstrained models ####
 m2_s <- "
   
   # Measurement models: Depression
@@ -199,31 +236,29 @@ m2_s <- "
   id + ie + ifn + ig + ih == 0
   
   # Structure model
-  # T1 -> T2
-  comtime_w2 ~ comtime_w1 + wfc_w1 + dep_w1 + 
-    age + gender+ mig + 
-    pse_w1 + te_w1 + emp_pr_w1 + semp_w1 + hs_bc_w1 + hs_bc_w1 + hs_wc_w1 +
-    ftj_w1 + wrhr_w1 + coh_w1 + married_w1 + nchild_w1 + east_w1 + urban_w1
-  wfc_w2 ~ comtime_w1 + wfc_w1 + dep_w1 + age + gender+ mig + 
-    age + gender+ mig + 
-    pse_w1 + te_w1 + emp_pr_w1 + semp_w1 + hs_bc_w1 + hs_bc_w1 + hs_wc_w1 +
-    ftj_w1 + wrhr_w1 + coh_w1 + married_w1 + nchild_w1 + east_w1 + urban_w1
-  dep_w2 ~ comtime_w1 + wfc_w1 + dep_w1 + age + gender+ mig + 
-    age + gender+ mig + 
-    pse_w1 + te_w1 + emp_pr_w1 + semp_w1 + hs_bc_w1 + hs_bc_w1 + hs_wc_w1 +
-    ftj_w1 + wrhr_w1 + coh_w1 + married_w1 + nchild_w1 + east_w1 + urban_w1
+  # Time-varying covariates: T1 -> T2
+  comtime_w2 ~ comtime_w1 + wfc_w1 + age + gender + mig + gv + te_w1 +
+    emp_pr_w2 + semp_w2 + hs_wc_w2 +
+    ftj_w2 + wrhr_w2 + married_w2 + nchild_w2 + urban_w2
+  wfc_w2 ~ c(la, la)*comtime_w1 + wfc_w1 + dep_w1 + age + gender + mig + gv + te_w1 +
+    emp_pr_w2 + semp_w2 + hs_wc_w2 +
+    ftj_w2 + wrhr_w2 + married_w2 + nchild_w2 + urban_w2
+  dep_w2 ~ wfc_w1 + dep_w1 + age + gender + mig + gv + te_w1 +
+    emp_pr_w2 + semp_w2 + hs_wc_w2 +
+    ftj_w2 + wrhr_w2 + married_w2 + nchild_w2 + urban_w2
   
-  # T2 -> T3
-  comtime_w3 ~ comtime_w2 + wfc_w2 + dep_w2 + 
-    pse_w2 + te_w2 + emp_pr_w2 + semp_w2 + hs_bc_w2 + hs_bc_w2 + hs_wc_w2 +
-    ftj_w2 + wrhr_w2 + coh_w2 + married_w2 + nchild_w2 + east_w2 + urban_w2
-  wfc_w3 ~ comtime_w2 + wfc_w2 + dep_w2 + 
-    pse_w2 + te_w2 + emp_pr_w2 + semp_w2 + hs_bc_w2 + hs_bc_w2 + hs_wc_w2 +
-    ftj_w2 + wrhr_w2 + coh_w2 + married_w2 + nchild_w2 + east_w2 + urban_w2
-  dep_w3 ~ comtime_w2 + wfc_w2 + dep_w2 + 
-    pse_w2 + te_w2 + emp_pr_w2 + semp_w2 + hs_bc_w2 + hs_bc_w2 + hs_wc_w2 +
-    ftj_w2 + wrhr_w2 + coh_w2 + married_w2 + nchild_w2 + east_w2 + urban_w2
-
+  # Time-varying covariates: T2 -> T3
+  comtime_w3 ~ comtime_w2 + wfc_w2 + age + gender + mig + gv + te_w1 +
+    emp_pr_w3 + semp_w3 + hs_wc_w3 +
+    ftj_w3 + wrhr_w3 + married_w3 + nchild_w3 + urban_w3
+  wfc_w3 ~ comtime_w2 + wfc_w2 + dep_w2 + age + gender + mig + gv + te_w1 +
+    emp_pr_w3 + semp_w3 + hs_wc_w3 +
+    ftj_w3 + wrhr_w3 + married_w3 + nchild_w3 + urban_w3
+  dep_w3 ~ c(lb, lb)*wfc_w2 + dep_w2 + age + gender + mig + gv + te_w1 +
+    emp_pr_w3 + semp_w3 + hs_wc_w3 +
+    ftj_w3 + wrhr_w3 + married_w3 + nchild_w3 + urban_w3 + 
+    c(lc, lc)*comtime_w1
+    
   # Within-wave covariance
   # T1
   comtime_w1 ~~ wfc_w1 + dep_w1
@@ -235,8 +270,14 @@ m2_s <- "
   comtime_w3 ~~ wfc_w3 + dep_w3
   wfc_w3     ~~ dep_w3
 "
+m2 <- sem.mi(m2_s, data = dt99, group = "east_w1", se.def = "mc",
+             parallel = "snow", ncpus = 6)
 
-m2 <- sem.mi(m2_s, data = dt99)
-summary(m2, fit.measures = TRUE, standardized = TRUE)
+# Compare models
+lavTestLRT.mi(m1, m2)
+
+# Save model results
+saveRDS(c(m1, m2), file = "Output/model_east_west_difference.rds")
+
 
 #### End ####

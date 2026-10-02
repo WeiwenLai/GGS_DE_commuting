@@ -16,29 +16,27 @@ library(dplyr)
 library(zoo)
 
 #### Data ####
-dt1 <- readRDS("Data/dt1a.rds")
+dt1 <- readRDS("Data/dt1a1.rds") |> 
+  filter(sex_reg %in% 1:2)
 
 #### Commuting time #### 
-# Convert them into 10 minutes
+# Convert commuting time into one hours
 dt2 <- dt1 %>% 
-  # Why dropping them: -8 -> the answer option "does not apply"; -2 -> no answer
-  # I just dont know what them mean
-  filter(!job16h_w1 %in% c(-8, -2) &
-           !job16h_w2 %in% c(-8, -2) &
-           !job16h_w3 %in% c(-8, -2)) %>% 
-  mutate(comtime_w1 = job16h_w1 * 60 + job16m_w1,
-         comtime_w2 = job16h_w2 * 60 + job16m_w2,
-         comtime_w3 = job16h_w3 * 60 + job16m_w3) %>% 
-  mutate(comtime_w1 = case_when(job16h_w1 == -9 | job16m_w1 == -9 ~ NA,
-                                TRUE ~ comtime_w1),
-         comtime_w2 = case_when(job16h_w2 == -9 | job16m_w2 == -9 ~ NA,
-                                TRUE ~ comtime_w2),
-         comtime_w3 = case_when(job16h_w3 == -9 | job16m_w3 %in% c(-9, -6)  ~ NA,
-                                TRUE ~ comtime_w3)) %>% 
-  mutate_at(vars(comtime_w1, comtime_w2, comtime_w3), ~ case_when(.x > 180 ~ 180,
-                                                                  TRUE ~ .x)) %>% 
-  mutate_at(vars(comtime_w1, comtime_w2, comtime_w3), ~ .x/10)  
+  # for those choosing -8 -> the answer option "does not apply"; -2 -> no answer ...
+  # ... I treat them as missing values in job16h and job16m
+  mutate(across(starts_with("job16h"), ~ case_when(.x < 0 ~ NA,
+                                                  TRUE ~ .x))) %>% 
+  mutate(across(starts_with("job16m"), ~ case_when(.x < 0 ~ NA,
+                                                   TRUE ~ .x))) %>% 
+  # For those commuting over more than 2 hours per one-way trip, I treat them as missing
+  filter((job16h_w1 %in% 0:2 | is.na(job16h_w1)) &
+           (job16h_w2 %in% 0:2 | is.na(job16h_w2)) &
+           (job16h_w3 %in% 0:2 | is.na(job16h_w3))) %>% 
+  mutate(comtime_w1 = (job16h_w1 * 60 + job16m_w1)/60,
+         comtime_w2 = (job16h_w2 * 60 + job16m_w2)/60,
+         comtime_w3 = (job16h_w3 * 60 + job16m_w3)/60) 
   
+
 
 #### Depression ####
 dt3 <- dt2 %>% 
@@ -57,13 +55,19 @@ dt4 <- dt3 %>%
   mutate(across(starts_with("job61i"), ~ 5 - .x))
 
 #### Other variables ####
-# time-invariant: age, gender, mig
+# time-invariant: age, gender, mig, gender value (gv)
 dt5 <- dt4 %>% 
   mutate(
     age = age_reg,
     gender = case_when(sex_reg %in% 1:2 ~ sex_reg) |> factor(labels = c("Men", "Women")),
     mig = case_when(mig10  %in% 1:2 ~ mig10 ) |> factor(labels = c("No", "Yes"))
-  )
+  ) %>% 
+  mutate(across(starts_with("val10"), ~ case_when(.x %in% 1:5 ~ .x))) %>% 
+  mutate(gv = (val10i1_w1 %in% 1:2) +
+           (val10i2_w1 %in% 1:2) +
+           (val10i3_w1 %in% 1:2) +
+           (val10i4_w1 %in% 4:5) +
+           (val10i5_w1 %in% 4:5))
   
 # time-varying
   # Education: edu_w1, edu_w2, edu_w3
@@ -146,7 +150,7 @@ dt6 <- dt5 %>%
                 .names = "{sub('degurba', 'urban', .col)}"))
 
 #### Save data ####
-varlist <- c("age", "gender", "mig",
+varlist <- c("id", "age", "gender", "mig", "gv",
              paste0("comtime_w", 1:3),
              paste0("per21i2_w", 1:3),
              paste0("per21i4_w", 1:3),
@@ -164,8 +168,10 @@ varlist <- c("age", "gender", "mig",
              paste0("relstat_w", 1:3),
              paste0("nchild_w", 1:3),
              paste0("east_w", 1:3),
-             paste0("urban_w", 1:3)
+             paste0("urban_w", 1:3),
+             paste0("stattrxrdesign_w", 1:3)
              )
-dt12 <- saveRDS(dt6[varlist], file = "Data/dt1b.rds")
+
+saveRDS(dt6[varlist], file = "Data/dt1b.rds")
 
 #### End ####

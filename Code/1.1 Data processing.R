@@ -1,6 +1,6 @@
 #### Start ####
 
-# Main idea: keep employed individuals surveyed all the first three waves
+# Main idea: keep employed individuals surveyed all the first three waves who do not work from home every day
 
 rm(list = ls())
 gc()
@@ -11,11 +11,10 @@ setwd("G:/My Drive/R Projects/GGS_DE_commuting")
 #### Library ####
 library(haven)
 library(dplyr)
-library(zoo)
 
 #### Data ####
 ##### Wave 1 ####
-w1_r <- read_dta("G:/My Drive/Data/Freda/FReDA v6.0.0/Data/Stata/FREDAanchor1.dta")|> 
+w1_r <- read_dta("G:/My Drive/Data/Freda/FReDA v6.0.0/Data/Stata/FREDAanchor1.dta") |> 
   select(id,   # ID
          age_reg, # Age 
          sex_reg, # Gender
@@ -55,7 +54,13 @@ w1_b <- read_dta("G:/My Drive/Data/Freda/FReDA v6.0.0/Data/Stata/FREDAanchor3.dt
          job46, # Sector
          job43i1, # Occupational classification
          job26, # working from home
-         isco08 # Occupational codes
+         isco08, # Occupational codes
+         val10i1, # Gender role ideology
+         val10i2,
+         val10i3,
+         val10i4,
+         val10i5,
+         stattrxrdesign
     )
 
 # Merge
@@ -70,14 +75,16 @@ w1 <- w1_r |>
   
 # Select study population
 w1_sp <- w1 |> 
-  # 1) age 49 or younger
+  # age 49 or younger
   filter(age_reg %in% 18:49) |> 
   # Wave a, in paid work (so that they can answer questions about commuting and work-family conflict)
   filter(job42_a_w1 %in% c(1, 4)) %>% 
   # Wave b, in paid work (so that they can answer full time/occupation classification/codes
   filter(job42_b_w1 %in% c(1, 4)) %>% 
   # Wave b, keep employed and self-employed (to ensure a comparable sample with later waves)
-  filter(sd55_b_w1 %in% c(-9, -2, 2:3))
+  filter(sd55_b_w1 %in% c(-9, -2, 2:3)) %>% 
+  # Do not work from home every day
+  filter(job26_w1 != 1)
 
 # A note about the first wave: as long as people indicated they were active in the paid work, they ...
 # ... were asked for working full time (job40, wave a) and occupation codes (isco08, wave b)
@@ -112,7 +119,8 @@ w2_b <- read_dta("G:/My Drive/Data/Freda/FReDA v6.0.0/Data/Stata/FREDAanchor5.dt
          per21i5,
          job26,
          isco08,
-         job66
+         job66,
+         stattrxrdesign
   ) |> 
   rename_with(~ paste0(.x, "_w2"), .cols = -id)
 
@@ -121,7 +129,9 @@ w2_sp <- w2_b |>
   # 1) employed (so that they can answer question related to work-family conflicts and other job characteristics)
   filter(job42_w2 %in% c(1, 4)) %>% 
   # 2) keep: a) missing (for later imputation); b) different working situations; c) other situations
-  filter(lfstat_w2 %in% c(-7, 7:11))
+  filter(lfstat_w2 %in% c(-7, 7:11)) %>% 
+  # Do not work from home every day
+  filter(job26_w2 != 1)
 
 # Respondents interviewed both in wave 1 and 2
 sp_w12 <- w1_sp |> 
@@ -155,7 +165,8 @@ w3_b <- read_dta("G:/My Drive/Data/Freda/FReDA v6.0.0/Data/Stata/FREDAanchor7.dt
          per21i5,
          job26,
          isco08,
-         job66) |> 
+         job66,
+         stattrxrdesign) |> 
   rename_with(~ paste0(.x, "_w3"), .cols = -id)
 
 # Study population in wave 3
@@ -163,13 +174,22 @@ w3_sp <- w3_b |>
   # 1) employed (so that they can answer question related to work-family conflicts and other job characteristics)
   filter(job42_w3 %in% c(1, 4)) %>% 
   # 2) keep: a) missing (for later imputation); b) different working situations; c) other situations
-  filter(lfstat_w3 %in% c(-7, 7:11))
+  filter(lfstat_w3 %in% c(-7, 7:11)) %>% 
+  # Do not work from home every day
+  filter(job26_w3 != 1)
 
 # Respondents interviewed both in waves 1, 2, and 3
-sp_w123 <- sp_w12 |> 
+# Sample a: those who not work from home everyday or multiple days per week
+samp1 <- sp_w12 |> 
+  merge(w3_sp, by = "id") %>% 
+  filter(!(job26_w1 == 2 | job26_w2 == 2 | job26_w3 == 2))
+
+# Sample b: those who not work from home everyday
+samp2 <- sp_w12 |> 
   merge(w3_sp, by = "id")
 
 #### Save data ####
-saveRDS(sp_w123, file = "Data/dt11.rds")
+saveRDS(samp1, file = "Data/dt1a1.rds")
+saveRDS(samp2, file = "Data/dt1a2.rds")
 
 #### End ####
