@@ -13,30 +13,16 @@ setwd("G:/My Drive/R Projects/GGS_DE_commuting")
 #### Library ####
 library(haven)
 library(dplyr)
-library(zoo)
 
 #### Data ####
-dt1 <- readRDS("Data/dt1a1.rds") |> 
-  filter(sex_reg %in% 1:2)
+dt1 <- readRDS("Data/dt1a1.rds") 
 
 #### Commuting time #### 
 # Convert commuting time into one hours
 dt2 <- dt1 %>% 
-  # for those choosing -8 -> the answer option "does not apply"; -2 -> no answer ...
-  # ... I treat them as missing values in job16h and job16m
-  mutate(across(starts_with("job16h"), ~ case_when(.x < 0 ~ NA,
-                                                  TRUE ~ .x))) %>% 
-  mutate(across(starts_with("job16m"), ~ case_when(.x < 0 ~ NA,
-                                                   TRUE ~ .x))) %>% 
-  # For those commuting over more than 2 hours per one-way trip, I treat them as missing
-  filter((job16h_w1 %in% 0:2 | is.na(job16h_w1)) &
-           (job16h_w2 %in% 0:2 | is.na(job16h_w2)) &
-           (job16h_w3 %in% 0:2 | is.na(job16h_w3))) %>% 
   mutate(comtime_w1 = (job16h_w1 * 60 + job16m_w1)/60,
          comtime_w2 = (job16h_w2 * 60 + job16m_w2)/60,
          comtime_w3 = (job16h_w3 * 60 + job16m_w3)/60) 
-  
-
 
 #### Depression ####
 dt3 <- dt2 %>% 
@@ -63,11 +49,11 @@ dt5 <- dt4 %>%
     mig = case_when(mig10  %in% 1:2 ~ mig10 ) |> factor(labels = c("No", "Yes"))
   ) %>% 
   mutate(across(starts_with("val10"), ~ case_when(.x %in% 1:5 ~ .x))) %>% 
-  mutate(gv = (val10i1_w1 %in% 1:2) +
-           (val10i2_w1 %in% 1:2) +
-           (val10i3_w1 %in% 1:2) +
-           (val10i4_w1 %in% 4:5) +
-           (val10i5_w1 %in% 4:5))
+  mutate(gv = (val10i1_w1 >= 1 & val10i1_w1 <= 2) +
+           (val10i2_w1 >= 1 & val10i2_w1 <= 2) +
+           (val10i3_w1 >= 1 & val10i3_w1 <= 2) +
+           (val10i4_w1 >= 4 & val10i4_w1 <= 5) +
+           (val10i5_w1 >= 4 & val10i5_w1 <= 5))
   
 # time-varying
   # Education: edu_w1, edu_w2, edu_w3

@@ -1,6 +1,8 @@
 #### Start ####
 
-# Turning categorical vars into binary coding for fitting SEM
+# Objective:
+# 1) Turning categorical vars into binary coding for fitting SEM
+# 2) Also to calculate missing data, appended to the attrition table
 
 rm(list = ls())
 gc()
@@ -66,6 +68,86 @@ dt6 <- dt5 |>
   mutate(across(starts_with("east_"), ~ as.numeric(.x) - 1)) |> 
   mutate(across(starts_with("urban"), ~ as.numeric(.x) - 1))
 
+#### Keep the selected vars ####
+
+#### Missing data pattern ####
+# Missing on time-constant vars
+m_tcv <- rowSums(is.na(dt6[, c("age", "gender", "mig", "gv", "te_w1")])) > 0
+# Wave 1
+# Commuting time
+m_w1_commtime <- is.na(dt6$comtime_w1)
+# Depression scale
+m_w1_dep <- rowSums(is.na(dt6[, c(paste0("per21i", c(2, 4, 5), "_w1"))])) > 0
+# Work-family conflicts
+m_w1_wfc <- rowSums(is.na(dt6[, c(paste0("job61i", 1:5, "_w1"))])) > 0
+# Other covariates
+m_w1_other <- rowSums(is.na(dt6[, c("emp_pr_w1", "semp_w1", "hs_wc_w1", 
+                                    "ftj_w1", "wrhr_w1", "married_w1", 
+                                    "nchild_w1", "east_w1", "urban_w1")])) > 0
+# Missing on any time-varying covariates
+m_w1_tvc <- rowSums(is.na(dt6[, c("comtime_w1",
+                                  paste0("per21i", c(2, 4, 5), "_w1"),
+                                  paste0("job61i", 1:5, "_w1"),
+                                  "emp_pr_w1", "semp_w1", "hs_wc_w1", 
+                                  "ftj_w1", "wrhr_w1", "married_w1", 
+                                  "nchild_w1", "east_w1", "urban_w1")])) > 0
+                    
+# Wave 2
+# Commuting time
+m_w2_commtime <- is.na(dt6$comtime_w2)
+# Depression scale
+m_w2_dep <- rowSums(is.na(dt6[, c(paste0("per21i", c(2, 4, 5), "_w2"))])) > 0
+# Work-family conflicts
+m_w2_wfc <- rowSums(is.na(dt6[, c(paste0("job61i", 1:5, "_w2"))])) > 0
+# Other covariates
+m_w2_other <- rowSums(is.na(dt6[, c("emp_pr_w2", "semp_w2", "hs_wc_w2", 
+                                    "ftj_w2", "wrhr_w2", "married_w2", 
+                                    "nchild_w2", "east_w2", "urban_w2")])) > 0
+# Missing on any time-varying covariates
+m_w2_tvc <- rowSums(is.na(dt6[, c("comtime_w2",
+                                  paste0("per21i", c(2, 4, 5), "_w2"),
+                                  paste0("job61i", 1:5, "_w2"),
+                                  "emp_pr_w2", "semp_w2", "hs_wc_w2", 
+                                  "ftj_w2", "wrhr_w2", "married_w2", 
+                                  "nchild_w2", "east_w2", "urban_w2")])) > 0
+
+# Wave 3
+# Commuting time
+m_w3_commtime <- is.na(dt6$comtime_w3)
+# Depression scale
+m_w3_dep <- rowSums(is.na(dt6[, c(paste0("per21i", c(2, 4, 5), "_w3"))])) > 0
+# Work-family conflicts
+m_w3_wfc <- rowSums(is.na(dt6[, c(paste0("job61i", 1:5, "_w3"))])) > 0
+# Other covariates
+m_w3_other <- rowSums(is.na(dt6[, c("emp_pr_w3", "semp_w3", "hs_wc_w3", 
+                                    "ftj_w3", "wrhr_w3", "married_w3", 
+                                    "nchild_w3", "east_w3", "urban_w3")])) > 0
+# Missing on any time-varying covariates
+m_w3_tvc <- rowSums(is.na(dt6[, c("comtime_w3",
+                                  paste0("per21i", c(2, 4, 5), "_w3"),
+                                  paste0("job61i", 1:5, "_w3"),
+                                  "emp_pr_w3", "semp_w3", "hs_wc_w3", 
+                                  "ftj_w3", "wrhr_w3", "married_w3", 
+                                  "nchild_w3", "east_w3", "urban_w3")])) > 0
+
+# modify the original attrition table
+att_misdat <- readRDS("Data/att_tab.rds") |>
+  rbind(
+    data.frame(
+      wave1 = c(sum(m_tcv), sum(m_w1_commtime), sum(m_w1_dep), sum(m_w1_wfc), sum(m_w1_other), sum(m_w1_tvc)),
+      wave2 = c("", sum(m_w2_commtime), sum(m_w2_dep), sum(m_w2_wfc), sum(m_w2_other), sum(m_w2_tvc)),
+      wave3 = c("", sum(m_w3_commtime), sum(m_w3_dep), sum(m_w3_wfc), sum(m_w3_other), sum(m_w3_tvc)),
+      row.names = c("Missing on time-constant covariates",
+                    "Missing on commuting time",
+                    "Missing on the depression scale",
+                    "Missing on the work-family conflict scale",
+                    "Missing on other time-varying covariates",
+                    "Missing on any time-varying covariates")
+    )
+  ) 
+  
+
+
 #### save data ####
 varlist <- c("id", "age", "gender", "mig", "gv",
              paste0("comtime_w", 1:3),
@@ -89,7 +171,6 @@ varlist <- c("id", "age", "gender", "mig", "gv",
              paste0("urban_w", 1:3),
              paste0("stattrxrdesign_w", 1:3)
              )
-
 dt7 <- dt6[varlist]
 
 saveRDS(dt7, file = "Data/dt1c.rds")

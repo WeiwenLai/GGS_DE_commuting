@@ -192,4 +192,20 @@ samp2 <- sp_w12 |>
 saveRDS(samp1, file = "Data/dt1a1.rds")
 saveRDS(samp2, file = "Data/dt1a2.rds")
 
+#### Save data for checking attrition ####
+# Only save id
+w1_id <- w1_sp |> 
+  filter(job26_w1 != 2) |> 
+  select(id)
+w2_id <-  w2_sp |> 
+  filter(job26_w2 != 2) |> 
+  select(id)
+w3_id <-  w3_sp |> 
+  filter(job26_w3 != 2) |> 
+  select(id)
+saveRDS(list(w1_id = w1_id, 
+             w2_id = w2_id, 
+             w3_id = w3_id),
+        file = "Data/dat_id.rds")
+
 #### End ####
